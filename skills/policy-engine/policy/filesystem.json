@@ -1,0 +1,242 @@
+{
+  "$schema": "https://kimi.ai/schemas/policy/filesystem/v4.2.1",
+  "policy_id": "filesystem",
+  "version": "4.2.1",
+  "description": "Filesystem access rules. 20 rules covering path traversal, credential protection, sandbox mounts, and sensitive file access.",
+  "rules": [
+    {
+      "id": "FS-001",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER write to host OS filesystem outside designated sandbox directories",
+      "pattern": {
+        "tool": "write_file|append_file|shell",
+        "path_regex": "^(?!/tmp/|/home/[^/]+/\\.kimi/|/mnt/sandbox/|/workspace/).*$",
+        "outside_sandbox": true
+      },
+      "rationale": "Prevents host OS contamination and escape from sandbox boundaries"
+    },
+    {
+      "id": "FS-002",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER read from credential or key storage directories",
+      "pattern": {
+        "tool": "read_file|shell",
+        "path_regex": "\\.(ssh|aws|azure|gcp|kube)/|(id_rsa|id_ed25519|\\.pem|\\.key|\\.p12|\\.pfx|credentials|token|secret)"
+      },
+      "rationale": "Prevents credential theft from host system"
+    },
+    {
+      "id": "FS-003",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER access system configuration files that could compromise security",
+      "pattern": {
+        "tool": "read_file|write_file|shell",
+        "path_regex": "^/etc/(passwd|shadow|sudoers|ssh/)|^/proc/self/(environ|maps)|^/sys/"
+      },
+      "rationale": "Prevents system-level information disclosure and privilege escalation"
+    },
+    {
+      "id": "FS-004",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER modify policy files or the policy manifest",
+      "pattern": {
+        "tool": "write_file|edit_file|shell",
+        "path_regex": "\\.kimi/policy/|policy.*\\.json$|manifest\\.json$"
+      },
+      "rationale": "Policy integrity is the root of trust; tampering is always blocked"
+    },
+    {
+      "id": "FS-005",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER create symbolic links pointing outside the sandbox",
+      "pattern": {
+        "tool": "shell",
+        "command_regex": "ln\\s+-s|symlink"
+      },
+      "condition": "target_outside_sandbox",
+      "rationale": "Symlink escape is a common container breakout technique"
+    },
+    {
+      "id": "FS-006",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER write executable files to shared or temporary directories without sandbox prefix",
+      "pattern": {
+        "tool": "write_file|shell",
+        "path_regex": "^/tmp/[^/]+$",
+        "file_mode": "0?[75][75][75]"
+      },
+      "rationale": "Executable files in /tmp can be used for persistence or lateral movement"
+    },
+    {
+      "id": "FS-007",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS verify file integrity with SHA-256 before executing from cache or registry",
+      "pattern": {
+        "tool": "sandbox_executor_run|shell",
+        "action": "execute_from_cache|execute_from_registry"
+      },
+      "requirement": "sha256_verified == true",
+      "rationale": "Supply chain integrity verification is mandatory for all cached/registered executables"
+    },
+    {
+      "id": "FS-008",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER mount host device files or kernel interfaces into sandbox",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "mount_regex": "^(/dev/|/proc/|/sys/)"
+      },
+      "rationale": "Device and kernel interface mounts are primary container escape vectors"
+    },
+    {
+      "id": "FS-009",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER write to the vault index or vault metadata directly",
+      "pattern": {
+        "tool": "write_file|edit_file|shell",
+        "path_regex": "\\.kimi/vault/index\\.md$|\\.kimi/vault/.*\\.meta$"
+      },
+      "rationale": "Vault metadata integrity must be managed only by obsidian-setup"
+    },
+    {
+      "id": "FS-010",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS use read-only mounts for source code directories in sandbox",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "mount_type": "source"
+      },
+      "requirement": "read_only == true",
+      "rationale": "Source code should never be modified during sandbox execution"
+    },
+    {
+      "id": "FS-011",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER delete or truncate log files",
+      "pattern": {
+        "tool": "shell",
+        "command_regex": "rm\\s+-.*log|truncate\\s+.*log|>\\s*.*log"
+      },
+      "rationale": "Audit logs must be append-only for forensic analysis"
+    },
+    {
+      "id": "FS-012",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS create files with restrictive permissions (max 644 for files, 755 for dirs)",
+      "pattern": {
+        "tool": "write_file|shell"
+      },
+      "requirement": "file_mode <= 0o644 or dir_mode <= 0o755",
+      "rationale": "Default restrictive permissions prevent accidental overexposure"
+    },
+    {
+      "id": "FS-013",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER access browser cookie stores or credential databases",
+      "pattern": {
+        "tool": "read_file|shell",
+        "path_regex": "(Cookies|Login Data|key4\\.db|cookies\\.sqlite)"
+      },
+      "rationale": "Browser credential stores contain sensitive authentication data"
+    },
+    {
+      "id": "FS-014",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER write to the policy engine's socket or API directly from sandbox",
+      "pattern": {
+        "tool": "shell",
+        "command_regex": "curl.*policy|wget.*policy|nc.*policy"
+      },
+      "rationale": "Direct policy engine access from sandbox is a privilege escalation vector"
+    },
+    {
+      "id": "FS-015",
+      "severity": "LOW",
+      "action": "ALWAYS",
+      "description": "ALWAYS prefer atomic file writes (write to temp, then rename) for critical files",
+      "pattern": {
+        "tool": "write_file",
+        "file_type": "policy|config|manifest"
+      },
+      "recommendation": "Use atomic write pattern to prevent corruption on crash"
+    },
+    {
+      "id": "FS-016",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER access the Kimi CLI configuration file directly",
+      "pattern": {
+        "tool": "read_file|write_file|edit_file",
+        "path_regex": "\\.kimi/config\\.(toml|json|yaml)$"
+      },
+      "rationale": "Configuration should only be modified through official CLI commands"
+    },
+    {
+      "id": "FS-017",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER access the secret manager's internal state or key files",
+      "pattern": {
+        "tool": "read_file|write_file|shell",
+        "path_regex": "\\.kimi/secrets/|secret-manager\\.db|master\\.key"
+      },
+      "rationale": "Secret manager state is the most sensitive data in the system"
+    },
+    {
+      "id": "FS-018",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER write to the skill registry database directly",
+      "pattern": {
+        "tool": "write_file|edit_file|shell",
+        "path_regex": "\\.kimi/skills/\\.registry|skill-registry\\.db"
+      },
+      "rationale": "Registry should only be modified through skill-registry API"
+    },
+    {
+      "id": "FS-019",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS validate sandbox capability declarations before mounting paths",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "capability_declaration_valid == true and manifest_matches_declaration",
+      "rationale": "Prevents skills from requesting more access than declared"
+    },
+    {
+      "id": "FS-020",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER attempt to modify or disable the sandbox-executor configuration",
+      "pattern": {
+        "tool": "write_file|edit_file|shell",
+        "path_regex": "sandbox-executor\\.(yaml|json|toml)$|seccomp-default\\.json$"
+      },
+      "rationale": "Sandbox configuration is the execution boundary; tampering is a complete bypass"
+    }
+  ],
+  "rule_summary": {
+    "total": 20,
+    "critical": 7,
+    "high": 7,
+    "medium": 5,
+    "low": 1,
+    "always": 5,
+    "never": 15
+  }
+}
