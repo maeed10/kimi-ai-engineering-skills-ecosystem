@@ -1,0 +1,219 @@
+{
+  "$schema": "https://kimi.ai/schemas/policy/sandbox/v4.2.1",
+  "policy_id": "sandbox",
+  "version": "4.2.1",
+  "description": "Sandbox configuration enforcement rules. 18 rules governing container security, backend selection, and runtime isolation.",
+  "rules": [
+    {
+      "id": "SBX-001",
+      "severity": "CRITICAL",
+      "action": "ALWAYS",
+      "description": "ALWAYS verify container image SHA-256 before any execution",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "image_sha256 matches manifest or dev_override_with_signed_waiver",
+      "rationale": "Tampered images are a primary supply chain attack vector"
+    },
+    {
+      "id": "SBX-002",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow container image pull from untrusted registries",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "registry": "!docker.io/library/*|!ghcr.io/maeed10/*|!registry.hub.docker.com/library/*"
+      },
+      "rationale": "Untrusted registries may host malicious or backdoored images"
+    },
+    {
+      "id": "SBX-003",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS apply read-only root filesystem to all sandbox containers",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "read_only_rootfs == true",
+      "rationale": "Read-only rootfs prevents persistent modification of the container filesystem"
+    },
+    {
+      "id": "SBX-004",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS drop ALL Linux capabilities and add back only the minimum required",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "capabilities_drop == ['ALL'] and len(capabilities_add) <= 2",
+      "rationale": "Principle of least privilege for container capabilities"
+    },
+    {
+      "id": "SBX-005",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS run sandbox containers as non-root user (UID >= 1000)",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "run_as_user.uid >= 1000 and run_as_user.gid >= 1000",
+      "rationale": "Non-root execution limits damage from container compromise"
+    },
+    {
+      "id": "SBX-006",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow host PID namespace sharing",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "namespace": "host_pid"
+      },
+      "rationale": "Host PID sharing exposes all host processes to the sandbox"
+    },
+    {
+      "id": "SBX-007",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow host IPC or network namespace sharing",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "namespace": "host_ipc|host_network"
+      },
+      "rationale": "Host namespace sharing breaks container isolation boundaries"
+    },
+    {
+      "id": "SBX-008",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS enforce no_new_privileges flag on sandbox processes",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "no_new_privileges == true",
+      "rationale": "Prevents processes from gaining additional privileges at runtime"
+    },
+    {
+      "id": "SBX-009",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS apply seccomp-bpf default profile with 44 blocked syscalls",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "seccomp_profile == 'default' and blocked_syscalls_count >= 44",
+      "rationale": "Seccomp is the primary defense against kernel exploitation from containers"
+    },
+    {
+      "id": "SBX-010",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow custom seccomp profiles that reduce security below default",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "seccomp_profile": "custom"
+      },
+      "requirement": "custom_profile_blocked_syscalls >= default_profile_blocked_syscalls",
+      "rationale": "Custom profiles must not weaken the default security posture"
+    },
+    {
+      "id": "SBX-011",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS use Kubernetes as primary backend when available; Docker as fallback",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "backend_priority == ['kubernetes', 'docker', 'e2b']",
+      "rationale": "Kubernetes provides the strongest isolation (PSSR restricted, RBAC, NetworkPolicy)"
+    },
+    {
+      "id": "SBX-012",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow Docker-in-Docker (DinD) or container runtime nesting",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "mount": "/var/run/docker.sock|/var/run/containerd.sock|/var/run/crio.sock"
+      },
+      "rationale": "Container runtime socket access grants full host control"
+    },
+    {
+      "id": "SBX-013",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS enforce tmpfs size limits (max 1Gi for /tmp)",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "mount_type": "tmpfs"
+      },
+      "requirement": "tmpfs_size <= 1073741824",
+      "rationale": "Prevents tmpfs from consuming all available memory"
+    },
+    {
+      "id": "SBX-014",
+      "severity": "LOW",
+      "action": "ALWAYS",
+      "description": "ALWAYS include security-opt=no-new-privileges in Docker run commands",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "backend": "docker"
+      },
+      "requirement": "security_opt contains 'no-new-privileges:true'",
+      "rationale": "Explicit no-new-privileges for Docker backend"
+    },
+    {
+      "id": "SBX-015",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow writable /proc or /sys mounts",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "mount": "^/proc/.*:rw|^/sys/.*:rw"
+      },
+      "rationale": "Writable proc/sys enables kernel parameter modification and information disclosure"
+    },
+    {
+      "id": "SBX-016",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER reuse sandbox containers across different skills or sessions",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "container_session_id == current_session_id",
+      "rationale": "Container reuse creates cross-contamination between untrusted workloads"
+    },
+    {
+      "id": "SBX-017",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS label sandbox pods with kimi_session_id and skill_name for tracing",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "backend": "kubernetes"
+      },
+      "requirement": "labels.kimi_session_id is set and labels.kimi_skill_name is set",
+      "rationale": "Labels enable pod tracing and audit trail correlation"
+    },
+    {
+      "id": "SBX-018",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow escape hatches or emergency bypass of sandbox isolation",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "command_regex": "escape|bypass|disable.*sandbox|override.*security"
+      },
+      "rationale": "Any bypass mechanism, even 'emergency', permanently compromises the security model"
+    }
+  ],
+  "rule_summary": {
+    "total": 18,
+    "critical": 2,
+    "high": 8,
+    "medium": 7,
+    "low": 1,
+    "always": 10,
+    "never": 8
+  }
+}

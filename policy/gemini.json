@@ -1,0 +1,204 @@
+{
+  "$schema": "https://kimi.ai/schemas/policy/gemini/v4.2.1",
+  "policy_id": "gemini",
+  "version": "4.2.1",
+  "description": "External model routing and safety rules. 16 rules governing which tasks can be routed to external LLMs, what content can be sent, and how outputs are validated.",
+  "rules": [
+    {
+      "id": "GEM-001",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER route SECURITY-CRITICAL tasks to external models regardless of cost savings",
+      "pattern": {
+        "intent_classification": "SECURITY-CRITICAL",
+        "route_target": "external"
+      },
+      "rationale": "Security-critical tasks (secret handling, policy validation, sandbox execution) must NEVER leave the trusted environment"
+    },
+    {
+      "id": "GEM-002",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER send API keys, tokens, passwords, or credentials to any external model",
+      "pattern": {
+        "content_type": "credential|secret|token|key|password",
+        "route_target": "external"
+      },
+      "pre_scan": "secret-detection-entropy",
+      "rationale": "Credentials sent to external services are permanently compromised"
+    },
+    {
+      "id": "GEM-003",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER send policy rules, policy engine configuration, or manifest files to external models",
+      "pattern": {
+        "content_type": "policy|manifest|rule_definition",
+        "route_target": "external"
+      },
+      "rationale": "Policy internals are sensitive security architecture; exposure aids adversaries"
+    },
+    {
+      "id": "GEM-004",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER send internal source code containing security mechanisms to external models",
+      "pattern": {
+        "content_type": "source_code",
+        "contains": [
+          "policy-engine",
+          "sandbox-executor",
+          "secret-manager",
+          "ipi-defender"
+        ],
+        "route_target": "external"
+      },
+      "rationale": "Security mechanism source code is high-value intelligence for adversaries"
+    },
+    {
+      "id": "GEM-005",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS classify task security sensitivity before routing to external models",
+      "pattern": {
+        "route_target": "external"
+      },
+      "requirement": "security_classification in ['NON-SECURITY', 'SECURITY-RELEVANT']",
+      "rationale": "All external routing must pass security sensitivity classification gate"
+    },
+    {
+      "id": "GEM-006",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS validate external model output through post-gemini-validator before use",
+      "pattern": {
+        "route_target": "external",
+        "direction": "response"
+      },
+      "requirement": "post_gemini_validation_passed == true",
+      "rationale": "External model outputs can contain hallucinations, injection attempts, or malicious content"
+    },
+    {
+      "id": "GEM-007",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER route tasks involving PII (personally identifiable information) to external models",
+      "pattern": {
+        "content_type": "PII",
+        "pii_detected": true,
+        "route_target": "external"
+      },
+      "rationale": "PII sent to external services violates privacy regulations (GDPR, CCPA, HIPAA)"
+    },
+    {
+      "id": "GEM-008",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS enforce the 950 request/day cap on external model usage",
+      "pattern": {
+        "route_target": "external"
+      },
+      "requirement": "daily_request_count < 950",
+      "rationale": "Rate limiting prevents cost overruns and excessive data exposure"
+    },
+    {
+      "id": "GEM-009",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER route during restricted phases (ASSESS, EXECUTE, VALIDATE)",
+      "pattern": {
+        "phase": "ASSESS|EXECUTE|VALIDATE",
+        "route_target": "external"
+      },
+      "rationale": "Security-sensitive phases require local-only execution for deterministic control"
+    },
+    {
+      "id": "GEM-010",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS log external model routing decisions with classification and content hash",
+      "pattern": {
+        "route_target": "external"
+      },
+      "requirement": "routing_decision_logged == true and content_hash_recorded == true",
+      "rationale": "All external data transfers must be auditable"
+    },
+    {
+      "id": "GEM-011",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER send user memory or episodic context to external models",
+      "pattern": {
+        "content_source": "memory|episodic|semantic",
+        "route_target": "external"
+      },
+      "rationale": "User memory may contain sensitive proprietary or personal information"
+    },
+    {
+      "id": "GEM-012",
+      "severity": "LOW",
+      "action": "ALWAYS",
+      "description": "ALWAYS prefer local model for tasks under 1000 tokens when cost difference is negligible",
+      "pattern": {
+        "estimated_tokens": "< 1000",
+        "route_target": "external"
+      },
+      "recommendation": "Local routing for small tasks reduces attack surface",
+      "rationale": "Small tasks don't benefit enough from external routing to justify the risk"
+    },
+    {
+      "id": "GEM-013",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER send infrastructure configuration or deployment manifests to external models",
+      "pattern": {
+        "content_type": "infrastructure_config|deployment_manifest|terraform|kubernetes_yaml",
+        "route_target": "external"
+      },
+      "rationale": "Infrastructure configs reveal system architecture and potential vulnerabilities"
+    },
+    {
+      "id": "GEM-014",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS apply differential privacy or data minimization before sending to external models",
+      "pattern": {
+        "route_target": "external"
+      },
+      "requirement": "data_minimization_applied == true",
+      "rationale": "Only send the minimum necessary data to external services"
+    },
+    {
+      "id": "GEM-015",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow external model to request tool calls that modify filesystem, network, or execution state",
+      "pattern": {
+        "route_target": "external",
+        "requested_tool": "write_file|shell|sandbox_executor_run|network_request"
+      },
+      "rationale": "External models must not have agency over local system state"
+    },
+    {
+      "id": "GEM-016",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS require human confirmation for first-time routing of a new task type to external models",
+      "pattern": {
+        "route_target": "external",
+        "task_type_history": "new"
+      },
+      "requirement": "human_confirmation == true or task_type_pre_approved == true",
+      "rationale": "New task types may have unforeseen security implications for external routing"
+    }
+  ],
+  "rule_summary": {
+    "total": 16,
+    "critical": 3,
+    "high": 6,
+    "medium": 6,
+    "low": 1,
+    "always": 7,
+    "never": 9
+  }
+}
