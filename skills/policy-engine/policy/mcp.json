@@ -1,0 +1,193 @@
+{
+  "$schema": "https://kimi.ai/schemas/policy/mcp/v4.2.1",
+  "policy_id": "mcp",
+  "version": "4.2.1",
+  "description": "MCP (Model Context Protocol) server trust and safety rules. 15 rules governing which MCP servers can be invoked, what data they can access, and how their outputs are validated.",
+  "rules": [
+    {
+      "id": "MCP-001",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER invoke an MCP server that has not been explicitly allowlisted",
+      "pattern": {
+        "tool": "mcp_invoke",
+        "server": "!allowlisted"
+      },
+      "rationale": "Unknown MCP servers are untrusted third-party code with system access"
+    },
+    {
+      "id": "MCP-002",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow MCP servers to access filesystem outside designated sandbox paths",
+      "pattern": {
+        "tool": "mcp_invoke",
+        "capability": "filesystem",
+        "path": "!sandbox_prefix"
+      },
+      "rationale": "MCP filesystem access must be scoped to the same sandbox as the main executor"
+    },
+    {
+      "id": "MCP-003A",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS allow GitHub MCP to execute scoped Git operations for PR management",
+      "pattern": {
+        "tool": "mcp_invoke",
+        "server": "github-mcp|github",
+        "capability": "shell|execute|run",
+        "command_regex": "^git\\s+(clone|fetch|checkout|push|pull|status|log|diff|merge|branch)$"
+      },
+      "requirement": "command_verified == true",
+      "rationale": "GitHub MCP requires git operations for PR management; scoped to safe git subcommands only. Arbitrary shell execution remains blocked."
+    },
+    {
+      "id": "MCP-003",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow MCP servers to execute arbitrary shell commands or subprocesses",
+      "pattern": {
+        "tool": "mcp_invoke",
+        "capability": "shell|execute|run",
+        "server": "!github-mcp|github"
+      },
+      "rationale": "MCP shell execution bypasses the policy engine and sandbox-executor entirely. Scoped git operations via GitHub MCP are permitted under MCP-003A."
+    },
+    {
+      "id": "MCP-004",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow MCP servers to make network requests to destinations not in their capability manifest",
+      "pattern": {
+        "tool": "mcp_invoke",
+        "capability": "network",
+        "destination": "!manifest_declared"
+      },
+      "rationale": "Undeclared network access from MCP servers is a data exfiltration vector"
+    },
+    {
+      "id": "MCP-005",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS validate MCP server capability manifest matches its runtime behavior",
+      "pattern": {
+        "tool": "mcp_invoke"
+      },
+      "requirement": "runtime_capabilities == declared_capabilities",
+      "rationale": "Capability drift indicates potential compromise of the MCP server"
+    },
+    {
+      "id": "MCP-006",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER forward credentials or secrets to MCP servers",
+      "pattern": {
+        "tool": "mcp_invoke",
+        "content_contains": "credential|secret|token|key|password|api_key"
+      },
+      "pre_scan": "secret-detection-entropy",
+      "rationale": "MCP servers are third-party; credentials forwarded to them are compromised"
+    },
+    {
+      "id": "MCP-007",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS log all MCP invocations with server name, capability used, and parameters (hashed)",
+      "pattern": {
+        "tool": "mcp_invoke"
+      },
+      "requirement": "invocation_logged == true",
+      "rationale": "All MCP access must be auditable for incident response"
+    },
+    {
+      "id": "MCP-008",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow MCP servers to read policy files or configuration",
+      "pattern": {
+        "tool": "mcp_invoke",
+        "capability": "filesystem",
+        "path_regex": "\\.kimi/policy/|\\.kimi/config\\.|manifest\\.json"
+      },
+      "rationale": "Policy files are sensitive security configuration"
+    },
+    {
+      "id": "MCP-009",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS apply rate limiting to MCP invocations (max 60/min per server)",
+      "pattern": {
+        "tool": "mcp_invoke"
+      },
+      "requirement": "rate <= 60 invocations/minute per server",
+      "rationale": "Rate limiting prevents abuse and resource exhaustion via MCP"
+    },
+    {
+      "id": "MCP-010",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow MCP servers to modify tool-execution-gateway or policy-engine state",
+      "pattern": {
+        "tool": "mcp_invoke",
+        "target": "tool-execution-gateway|policy-engine|phase-controller|sandbox-executor"
+      },
+      "rationale": "MCP servers must not have access to security infrastructure"
+    },
+    {
+      "id": "MCP-011",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS scan MCP server output through ipi-defender before incorporation into context",
+      "pattern": {
+        "tool": "mcp_invoke",
+        "direction": "response"
+      },
+      "requirement": "ipi_scan_passed == true",
+      "rationale": "MCP outputs can contain prompt injection or malicious content"
+    },
+    {
+      "id": "MCP-012",
+      "severity": "LOW",
+      "action": "ALWAYS",
+      "description": "ALWAYS require explicit user confirmation before invoking MCP servers with write capabilities",
+      "pattern": {
+        "tool": "mcp_invoke",
+        "capability": "write|modify|delete|update"
+      },
+      "requirement": "user_confirmed == true",
+      "rationale": "Write-capable MCP servers can cause permanent changes"
+    },
+    {
+      "id": "MCP-013",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow MCP servers to access the secret-manager or its key material",
+      "pattern": {
+        "tool": "mcp_invoke",
+        "target": "secret-manager|secrets|vault",
+        "path_regex": "\\.kimi/secrets/|vault/"
+      },
+      "rationale": "Secret manager holds the highest-value data in the system"
+    },
+    {
+      "id": "MCP-014",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS validate MCP server identity via certificate pinning or token validation",
+      "pattern": {
+        "tool": "mcp_connect"
+      },
+      "requirement": "identity_verified == true",
+      "rationale": "Prevents man-in-the-middle attacks on MCP connections"
+    }
+  ],
+  "rule_summary": {
+    "total": 15,
+    "critical": 3,
+    "high": 5,
+    "medium": 6,
+    "low": 1,
+    "always": 7,
+    "never": 8
+  }
+}
