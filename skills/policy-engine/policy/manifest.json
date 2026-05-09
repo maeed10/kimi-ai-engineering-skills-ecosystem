@@ -1,0 +1,70 @@
+{
+  "schema_version": "4.2.1",
+  "ecosystem_version": "4.2.1",
+  "description": "SHA-256 integrity manifest for all policy files. Policy engine validates every file against this manifest at load time. Any mismatch results in BLOCK.",
+  "generated_at": "2026-05-09T02:34:56Z",
+  "signed": true,
+  "self_integrity": {
+    "script": "scripts/policy-engine-server.py",
+    "sha256": "4ef8d88399891562c23cb64bc9d35fb42230ed13578105374044c4cc0eb7afa3",
+    "description": "SHA-256 of the policy-engine-server.py script. Verified at daemon startup to detect tampering."
+  },
+  "files": {
+    "filesystem.json": {
+      "sha256": "ef8f01d335af2914febc1f9cbd978ede8b6e1d5152e272201b3273b676f22fe5",
+      "required": true,
+      "version": "4.2.1"
+    },
+    "network.json": {
+      "sha256": "6353a6b9f3b6331f64f764e7ff36e269c9290db7d5c662aa109b20e2ee3d3708",
+      "required": true,
+      "version": "4.2.1"
+    },
+    "execution.json": {
+      "sha256": "f19d7c356bfcf91fa6850be8d12f4111a766801ae1ef22c18c8a34fa4e52ee5f",
+      "required": true,
+      "version": "4.2.1"
+    },
+    "gemini.json": {
+      "sha256": "4de0eaf03a854b5b779b78ae5e169bf716ce0799b81ceaebe2025510a3de3bc2",
+      "required": true,
+      "version": "4.2.1"
+    },
+    "sandbox.json": {
+      "sha256": "1508e169c4d301c95dcf74a15c2cdb8a7b15b87d4bf25491df85c0ab73cca337",
+      "required": true,
+      "version": "4.2.1"
+    },
+    "mcp.json": {
+      "sha256": "1a3523059e31d8b918fadba4967f322ccf811fce005bf15b5276665734630578",
+      "required": true,
+      "version": "4.2.1"
+    },
+    "secrets.json": {
+      "sha256": "43aa69c23d2b58c570347e752fa116f1a2d875d6ed3106600829be901962e4ca",
+      "required": true,
+      "version": "4.2.1"
+    },
+    "skill_registry.json": {
+      "sha256": "b59208d22ad7e45a63de0e9ae13e49063cee74eab9629ef48ebf8ee76184e795",
+      "required": true,
+      "version": "4.2.1"
+    },
+    "telemetry.json": {
+      "sha256": "8789b4f74dbe0fae7876f1adb9664f5744306c7983fc870ebd8fa4fd24b3b5ac",
+      "required": false,
+      "version": "4.2.1"
+    }
+  },
+  "always_rules_count": 59,
+  "never_rules_count": 89,
+  "total_rules_count": 148,
+  "enforcement": {
+    "default_action": "BLOCK",
+    "on_hash_mismatch": "BLOCK",
+    "on_file_missing": "BLOCK",
+    "on_version_mismatch": "BLOCK",
+    "verify_signatures": true
+  },
+  "critical_rules_count": 31
+}

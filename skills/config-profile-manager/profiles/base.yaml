@@ -1,0 +1,90 @@
+version: "1.0"
+description: >
+  Base configuration for sandbox-executor. All environment profiles inherit
+  from this file and apply environment-specific overrides. Do NOT edit this
+  file for a specific environment; create or edit the environment overlay
+  in profiles/ instead.
+
+sandbox:
+  executor:
+    image: sandbox-executor
+    image_pull_policy: IfNotPresent
+    restart_policy: unless-stopped
+    graceful_shutdown_timeout: 30s
+    max_concurrent_jobs: 10
+    job_queue_backend: redis
+    default_timeout: 5m
+
+security:
+  # Base hardening applied to every environment. Profiles may tighten but
+  # MUST NOT weaken these settings without explicit risk acceptance.
+  sandbox_escape_prevention: true
+  read_only_rootfs: true
+  no_new_privileges: true
+  seccomp_profile: runtime/default
+  apparmor_profile: sandbox-executor-default
+
+  # Capabilities: base drops ALL; profiles may add back specific caps via
+  # capability_additions (whitelist model). This prevents accidental
+  # over-privileging.
+  capability_drops:
+    - ALL
+
+  # Image verification base policy: signatures are not *enforced* here,
+  # but the verification pipeline is enabled. Production upgrades this to
+  # mandatory enforcement.
+  image_verification:
+    verify_signatures: false
+    required_signers: []
+    cosign_keyring: /etc/sandbox/cosign.pub
+
+  # Network security baseline. Production upgrades to mTLS (require).
+  network:
+    tls_version_min: "1.2"
+    client_auth_mode: optional
+    allowed_ciphers:
+      - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+      - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+      - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+      - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+
+vault:
+  # OBSIDIAN driver is used for all environments. Mount policies are
+  # environment-specific and MUST be explicitly defined in each profile
+  # per OBSIDIAN-001.
+  driver: obsidian
+  obsidian:
+    socket_path: /run/obsidian/vault.sock
+    connection_timeout: 5s
+    max_retries: 3
+    # OBSIDIAN-001: mount_policy MUST be defined in environment profile
+    mount_policy: {}  # placeholder; profiles override
+
+policy_engine:
+  endpoint: http://localhost:8080
+  decision_timeout: 2s
+  default_decision: deny
+  cache_ttl: 30s
+
+observability:
+  log_level: INFO
+  log_format: json
+  metrics_enabled: true
+  metrics_port: 9090
+  health_check_interval: 10s
+  tracing_enabled: false
+  jaeger_endpoint: ""
+
+resource_limits:
+  default:
+    cpu_cores: 1.0
+    memory_mb: 512
+    disk_mb: 2048
+    ephemeral_storage_mb: 1024
+    max_processes: 100
+
+network:
+  egress_policy: restricted
+  dns_resolver: "8.8.8.8"
+  allowed_egress_hosts: []
+  proxy_mode: false

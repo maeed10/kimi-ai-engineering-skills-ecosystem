@@ -1,0 +1,85 @@
+version: "1.0"
+description: >
+  DEVELOPMENT profile for sandbox-executor.
+  Permissive settings optimized for fast feedback loops, local debugging,
+  and rapid iteration. NOT for production use.
+
+_inherits: base.yaml
+_environment: development
+
+sandbox:
+  executor:
+    # Pull latest dev images automatically; tags are mutable in dev.
+    image_pull_policy: Always
+    # More concurrent jobs for parallel test runs.
+    max_concurrent_jobs: 20
+    # Extended timeouts for interactive debugging.
+    default_timeout: 30m
+    # Enable hot-reload for executor code.
+    hot_reload: true
+
+security:
+  # Development trades hardening for debuggability.
+  # WARNING: These settings are INTENTIONALLY weaker than base.
+  # Risk acceptance: local-only execution, no sensitive data.
+
+  # Allow debugging tools that need extra caps.
+  capability_additions:
+    - SYS_PTRACE       # Required for debuggers (gdb, delve)
+    - DAC_READ_SEARCH  # Faster file traversal for large repos
+
+  # Disable read-only rootfs for dev tool installation.
+  read_only_rootfs: false
+
+  # Image signatures are not verified in dev (mutable tags, local builds).
+  image_verification:
+    verify_signatures: false
+    required_signers: []
+
+  # Dev uses optional TLS; no mTLS required.
+  network:
+    client_auth_mode: optional
+    tls_version_min: "1.2"
+
+vault:
+  # OBSIDIAN-001: Development vault mount policy.
+  # Dev uses a local mock vault with broad mount access.
+  obsidian:
+    mount_policy:
+      mode: development
+      allow_mock_secrets: true
+      allowed_paths:
+        - "dev/*"
+        - "local/*"
+      require_approval: false
+      audit_reads: false
+      audit_writes: false
+      max_ttl: 1h
+
+policy_engine:
+  # Dev policy engine runs in permissive (warn-only) mode.
+  default_decision: allow
+  decision_timeout: 10s
+
+observability:
+  # Verbose logging for debugging.
+  log_level: DEBUG
+  # Enable tracing in dev for performance analysis.
+  tracing_enabled: true
+  jaeger_endpoint: http://localhost:16686
+
+resource_limits:
+  # Relaxed limits for dev workloads.
+  default:
+    cpu_cores: 4.0
+    memory_mb: 4096
+    disk_mb: 8192
+    ephemeral_storage_mb: 4096
+    max_processes: 500
+
+network:
+  # Broad egress allowed for fetching dependencies.
+  egress_policy: unrestricted
+  allowed_egress_hosts:
+    - "*"
+  proxy_mode: false

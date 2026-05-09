@@ -1,0 +1,77 @@
+{
+  "version": "4.0.0",
+  "rules": [
+    {
+      "rule_id": "NET-001",
+      "version": "4.0.0",
+      "rule_type": "network",
+      "directive": "NEVER",
+      "severity": "critical",
+      "description": "Block non-HTTPS outbound traffic",
+      "conditions": {
+        "operator": "ALL_OF",
+        "predicates": [
+          { "field": "protocol", "operator": "eq", "value": "http" }
+        ]
+      },
+      "action": "block",
+      "applies_to": { "tools": ["web_search", "http_request", "shell"], "phases": ["*"] },
+      "metadata": { "rationale": "HTTP is unencrypted and risks data exfiltration" }
+    },
+    {
+      "rule_id": "NET-002",
+      "version": "4.0.0",
+      "rule_type": "network",
+      "directive": "ALWAYS",
+      "severity": "error",
+      "description": "Only allow known domains for code-tester",
+      "conditions": {
+        "operator": "ALL_OF",
+        "predicates": [
+          { "field": "skill", "operator": "eq", "value": "code-tester" },
+          { "field": "domain", "operator": "in", "value": ["pypi.org", "files.pythonhosted.org", "registry.npmjs.org"] }
+        ]
+      },
+      "action": "allow",
+      "applies_to": { "tools": ["http_request", "shell"], "phases": ["*"] },
+      "metadata": { "rationale": "code-tester only needs package registries" }
+    },
+    {
+      "rule_id": "NET-003",
+      "version": "4.0.0",
+      "rule_type": "network",
+      "directive": "ALWAYS",
+      "severity": "error",
+      "description": "Only allow known domains for security-auditor",
+      "conditions": {
+        "operator": "ALL_OF",
+        "predicates": [
+          { "field": "skill", "operator": "eq", "value": "security-auditor" },
+          { "field": "domain", "operator": "in", "value": ["api.osv.dev", "api.github.com", "semgrep.dev", "pypi.org", "registry.npmjs.org"] }
+        ]
+      },
+      "action": "allow",
+      "applies_to": { "tools": ["http_request", "shell"], "phases": ["*"] },
+      "metadata": { "rationale": "security-auditor needs CVE and ruleset APIs" }
+    },
+    {
+      "rule_id": "NET-004",
+      "version": "4.0.0",
+      "rule_type": "network",
+      "directive": "NEVER",
+      "severity": "critical",
+      "description": "Block localhost access from sandbox unless explicitly allowed",
+      "conditions": {
+        "operator": "ANY_OF",
+        "predicates": [
+          { "field": "domain", "operator": "eq", "value": "127.0.0.1" },
+          { "field": "domain", "operator": "eq", "value": "localhost" },
+          { "field": "domain", "operator": "prefix", "value": "192.168." }
+        ]
+      },
+      "action": "escalate",
+      "applies_to": { "tools": ["http_request", "shell"], "phases": ["*"] },
+      "metadata": { "rationale": "Localhost access can reach host services; requires human approval" }
+    }
+  ]
+}

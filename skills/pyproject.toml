@@ -1,0 +1,99 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kimi-ai-engineering-skills"
+version = "4.0.0"
+description = "Kimi AI Engineering Skills Ecosystem v4.0 — Programmatic safety enforcement for AI-assisted software engineering"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+
+keywords = [
+    "ai-agent",
+    "software-engineering",
+    "security",
+    "sandbox",
+    "policy-engine",
+    "skill-orchestration",
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "pyyaml>=6.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+security = [
+    "semgrep>=1.0",
+    "bandit>=1.7",
+    "safety>=3.0",
+]
+performance = [
+    "numpy>=1.24",
+    "scipy>=1.11",
+]
+ipi = [
+    "numpy>=1.24",
+    "sentence-transformers>=2.2",
+]
+drift = [
+    "numpy>=1.24",
+]
+memory = [
+    "cryptography>=41.0",
+]
+resolver = [
+    "requests>=2.31.0",
+    "packaging>=23.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "flake8>=6.0",
+    "mypy>=1.5",
+]
+all = [
+    "kimi-ai-engineering-skills[security,performance,ipi,drift,memory,resolver,dev]"
+]
+
+[project.scripts]
+kimi-verify-deps = "scripts.verify_deps:main"
+kimi-policy-engine = "policy_engine.scripts.policy_engine:main"
+kimi-sandbox-executor = "sandbox_executor.scripts.sandbox_executor:main"
+kimi-ipi-screener = "ipi_defender.scripts.ipi_screener:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["scripts*", "policy_engine*", "sandbox_executor*", "ipi_defender*", "error_policy*", "phase_controller*", "skill_registry*", "drift_monitor*", "memory_guard*", "adversarial_tester*", "dependency_resolver*"]
+exclude = ["tests*", "__pycache__*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = "-v --tb=short"
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false

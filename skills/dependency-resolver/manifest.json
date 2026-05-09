@@ -1,0 +1,70 @@
+{
+  "name": "dependency-resolver",
+  "version": "4.0.0",
+  "status": "ACTIVE",
+  "tier": "CORE",
+  "purpose": "Dependency verification and vulnerability scanning backbone for the Kimi AI Engineering Skills Ecosystem. Ensures no skill executes with missing, outdated, or vulnerable dependencies.",
+  "entry_points": {
+    "verify": "scripts/verify-deps.py",
+    "cve_update": "scripts/cve-update.py",
+    "sbom": "scripts/sbom-generator.py",
+    "docker": "scripts/docker-generator.py"
+  },
+  "dependencies": {
+    "python_packages": [
+      "requests>=2.31",
+      "packaging>=23.0",
+      "toml>=0.10",
+      "pydantic>=2.0",
+      "typer>=0.9",
+      "jinja2>=3.1"
+    ],
+    "binaries": ["python3", "pip"],
+    "runtimes": {
+      "python": ">=3.10"
+    },
+    "pyproject_extras": ["all"]
+  },
+  "integrations": [
+    {
+      "skill": "skill-registry",
+      "interface": "activation_gate",
+      "description": "Blocks skill activation until all declared dependencies are satisfied"
+    },
+    {
+      "skill": "security-auditor",
+      "interface": "cve_feed",
+      "description": "Feeds CVE findings into Security Auditor's merge gate and audit reports"
+    },
+    {
+      "skill": "error-policy",
+      "interface": "error_trigger",
+      "description": "Emits structured DEP_MISSING / DEP_CVE errors for ErrorPolicy fallback decisions"
+    }
+  ],
+  "outputs": [
+    "reports/dependency-report.json",
+    "reports/sbom-*.{spdx.json,cyclonedx.json,md}",
+    "reports/error-policy-{skill}.json"
+  ],
+  "safety_rules": [
+    "NEVER allow a skill to run if any dependency is missing or version-incompatible",
+    "ALWAYS check for dependency updates weekly; flag outdated packages in session reports",
+    "NEVER rely on LLM's internal knowledge for CVE identification — always query live advisory databases",
+    "ALWAYS cache CVE data locally to avoid API rate limits and enable offline operation",
+    "NEVER auto-install system-level binaries without human approval",
+    "ALWAYS include dependency check in session startup — fail fast before any code runs"
+  ],
+  "research_references": {
+    "IMP-4.1": {
+      "finding": "Zero dependency specifications across 30 claimed scripts",
+      "severity": "8/10",
+      "status": "CLOSED"
+    },
+    "IMP-4.3": {
+      "finding": "Dependency Manager claims CVE findings with no OSV/NVD/GitHub Advisory connectivity",
+      "severity": "9/10",
+      "status": "CLOSED"
+    }
+  }
+}
