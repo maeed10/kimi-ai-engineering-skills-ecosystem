@@ -1,0 +1,45 @@
+---
+skill_name: performance-validator
+version: 4.0.0
+
+runtime:
+  image: grafana/k6:0.52.0
+  expected_sha256: null
+  entrypoint: null
+
+capabilities:
+  network:
+    enabled: true
+    whitelisted_domains: []
+    # Network is enabled to allow load-test targets; domain whitelisting
+    # is enforced at the gateway level per-test-run, not globally here.
+
+  filesystem:
+    read_only_mounts:
+      - host: "{REPO_ROOT}"
+        container: "/workspace"
+    write_paths:
+      - "/tmp"
+      - "/workspace/perf-results"
+    max_tmpfs_size: "1g"
+
+  resources:
+    profile: heavy
+    max_memory_mb: 4096
+    max_cpus: 4.0
+    max_pids: 100
+    timeout_seconds: 600
+
+  security:
+    privileged: false
+    seccomp_profile: "default"
+    capabilities_drop: ["ALL"]
+    capabilities_add: ["NET_BIND_SERVICE"]
+    no_new_privileges: true
+
+audit:
+  log_level: INFO
+  retain_stdout: true
+  retain_stderr: true
+  max_log_size_mb: 10
+  forward_to_policy_engine: true

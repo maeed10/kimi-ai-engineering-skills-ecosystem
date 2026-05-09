@@ -1,0 +1,78 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: kimi-sandbox
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: kimi-sandbox
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+# PRODUCTION NOTE: This policy allows HTTPS egress ONLY to a cluster-local proxy.
+# The proxy (e.g., Artifactory, Nexus, Squid) runs in the `kimi-egress-proxy`
+# namespace and is responsible for forwarding to external registries/APIs.
+# This prevents compromised sandboxes from connecting directly to arbitrary
+# endpoints on port 443. See NET-001 (HTTPS-only) and NET-018 (no network when
+# declared as 'none').
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-https-egress
+  namespace: kimi-sandbox
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kimi-egress-proxy
+    ports:
+    - protocol: TCP
+      port: 443
+---
+# FALLBACK: If no cluster-local proxy is available, use this curated ipBlock
+# policy instead. Replace the CIDRs with those of your specific registries.
+# WARNING: Using 0.0.0.0/0 allows any destination on port 443 and is NOT
+# recommended for production.
+# apiVersion: networking.k8s.io/v1
+# kind: NetworkPolicy
+# metadata:
+#   name: allow-https-egress-curated
+#   namespace: kimi-sandbox
+# spec:
+#   podSelector: {}
+#   policyTypes:
+#   - Egress
+#   egress:
+#   - to:
+#     - ipBlock:
+#         cidr: 151.101.0.0/16  # PyPI (Fastly)
+#     - ipBlock:
+#         cidr: 140.82.112.0/20  # GitHub
+#     ports:
+#     - protocol: TCP
+#       port: 443

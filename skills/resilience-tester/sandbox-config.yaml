@@ -1,0 +1,45 @@
+---
+skill_name: resilience-tester
+version: 4.0.0
+
+runtime:
+  image: python:3.11-slim
+  expected_sha256: null
+  entrypoint: null
+
+capabilities:
+  network:
+    enabled: true
+    whitelisted_domains: []
+    # Network enabled for target-service reachability during chaos injection.
+    # Specific targets are declared per-experiment and validated at runtime.
+
+  filesystem:
+    read_only_mounts:
+      - host: "{REPO_ROOT}"
+        container: "/workspace"
+    write_paths:
+      - "/tmp"
+      - "/workspace/.resilience-results"
+    max_tmpfs_size: "512m"
+
+  resources:
+    profile: standard
+    max_memory_mb: 2048
+    max_cpus: 2.0
+    max_pids: 100
+    timeout_seconds: 600
+
+  security:
+    privileged: false
+    seccomp_profile: "default"
+    capabilities_drop: ["ALL"]
+    capabilities_add: ["NET_ADMIN"]
+    no_new_privileges: true
+
+audit:
+  log_level: INFO
+  retain_stdout: true
+  retain_stderr: true
+  max_log_size_mb: 10
+  forward_to_policy_engine: true

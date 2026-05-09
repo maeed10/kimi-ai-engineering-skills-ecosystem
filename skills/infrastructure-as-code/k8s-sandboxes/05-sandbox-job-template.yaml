@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: kimi-sandbox-
+  namespace: kimi-sandbox
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: kimi-sandbox-executor
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: sandbox
+        image: python:3.11-slim
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+            ephemeral-storage: "1Gi"
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: gemini-api-key
+          mountPath: /run/secrets/gemini-api-key
+          readOnly: true
+        - name: github-token
+          mountPath: /run/secrets/github-token
+          readOnly: true
+      volumes:
+      - name: tmp
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: gemini-api-key
+        secret:
+          secretName: gemini-api-key
+          optional: true
+      - name: github-token
+        secret:
+          secretName: github-token
+          optional: true
+      restartPolicy: Never

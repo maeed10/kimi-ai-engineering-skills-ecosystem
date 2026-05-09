@@ -1,0 +1,55 @@
+---
+version: 4.2.1
+
+# Backend selection: "docker" (default) or "e2b"
+backend: docker
+
+docker:
+  socket: /var/run/docker.sock
+  default_timeout_pull_seconds: 120
+  max_concurrent_executions: 10
+  container_prefix: "kimi-sandbox"
+
+# Alternative container runtime (nerdctl for Rancher Desktop / containerd)
+nerdctl:
+  runtime_cmd: "nerdctl"
+
+# E2B cloud sandbox configuration (used when backend: e2b)
+e2b:
+  api_key: "${E2B_API_KEY}"
+  timeout_seconds: 60
+
+defaults:
+  memory_mb: 512
+  cpus: 1.0
+  pids_limit: 32
+  timeout_seconds: 60
+  tmpfs_size: "128m"
+  seccomp_profile_path: "${USER_HOME}/.kimi/skills/seccomp-default.json"
+
+images:
+  trusted_registries:
+    - "docker.io/library"
+    - "ghcr.io/kimi-ai"
+    - "docker.io/grafana"
+    # NOTE: ghcr.io/maeed10 is a personal registry used during prototyping.
+    # It MUST be replaced with an org-scoped registry (ghcr.io/<org>) and
+    # a documented key ceremony + co-signer policy before production use.
+    # See: supply-chain-verifier SKILL.md for TUF/Sigstore requirements.
+  image_pull_policy: "if-not-present"
+  verify_signatures: true
+  # Fail-closed guard: if verify_signatures is set to false, the sandbox
+  # executor will abort unless KIMI_INSECURE_SKIP_SIGNATURE_VERIFY=1 is set.
+  # This is intended ONLY for local development with unsigned images.
+
+logging:
+  level: INFO
+  destination: "file://${USER_HOME}/.kimi/logs/sandbox-executor.log"
+  json_format: true
+
+policy_engine:
+  endpoint: "unix:///run/kimi/policy-engine.sock"
+  fallback_endpoint: "http://127.0.0.1:9100"
+  enforce_strict_mode: true
+  reject_on_capability_mismatch: true
+  forward_to_policy_engine: true
