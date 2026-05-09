@@ -1,0 +1,280 @@
+{
+  "$schema": "https://kimi.ai/schemas/policy/execution/v4.2.1",
+  "policy_id": "execution",
+  "version": "4.2.1",
+  "description": "Execution control rules. 22 rules covering subprocess control, container isolation, privilege escalation prevention, and resource limits.",
+  "rules": [
+    {
+      "id": "EXEC-001",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow subprocess execution directly on the host OS",
+      "pattern": {
+        "tool": "shell",
+        "host_os": true,
+        "sandbox_bypass": true
+      },
+      "rationale": "Direct host execution bypasses all sandbox isolation; ALWAYS use sandbox_executor"
+    },
+    {
+      "id": "EXEC-002",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow network access from sandbox unless explicitly declared in capability manifest",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "network_access": true,
+        "manifest_declaration": false
+      },
+      "rationale": "Undeclared network access is a sandbox escape and data exfiltration vector"
+    },
+    {
+      "id": "EXEC-003",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow writable host filesystem mount except designated /tmp and /workspace",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "mount_type": "host",
+        "writable": true,
+        "path_not_in": [
+          "/tmp",
+          "/workspace",
+          "/mnt/sandbox"
+        ]
+      },
+      "rationale": "Writable host mounts enable permanent system modification from sandbox"
+    },
+    {
+      "id": "EXEC-004",
+      "severity": "CRITICAL",
+      "action": "ALWAYS",
+      "description": "ALWAYS use a fresh sandbox for each execution — never reuse containers",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "fresh_container == true and container_reused == false",
+      "rationale": "Container reuse creates persistent state that can be exploited across executions"
+    },
+    {
+      "id": "EXEC-005",
+      "severity": "CRITICAL",
+      "action": "ALWAYS",
+      "description": "ALWAYS verify container image integrity via SHA-256 before execution",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "image_sha256_verified == true or env == 'development' with signed waiver",
+      "rationale": "Prevents execution of tampered or backdoored container images"
+    },
+    {
+      "id": "EXEC-006",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow privileged container mode or --privileged flag",
+      "pattern": {
+        "tool": "sandbox_executor_run|shell",
+        "flag": "--privileged|privileged: true|securityContext.privileged"
+      },
+      "rationale": "Privileged mode grants full host access, completely negating sandbox isolation"
+    },
+    {
+      "id": "EXEC-007",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow setuid/setgid binary execution in sandbox",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "command_regex": "chmod\\s+.*[su]|chmod\\s+4[0-7][0-7][0-7]|chmod\\s+2[0-7][0-7][0-7]"
+      },
+      "rationale": "setuid/setgid binaries enable privilege escalation within and beyond sandbox"
+    },
+    {
+      "id": "EXEC-008",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow ptrace system call or process tracing in sandbox",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "syscall": "ptrace",
+        "seccomp": "blocked"
+      },
+      "rationale": "ptrace enables process injection and credential theft from other processes"
+    },
+    {
+      "id": "EXEC-009",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow mount system calls inside sandbox",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "syscall": "mount|umount",
+        "seccomp": "blocked"
+      },
+      "rationale": "Mounting enables filesystem manipulation that can escape the container"
+    },
+    {
+      "id": "EXEC-010",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow kernel module loading or unloading",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "command_regex": "insmod|rmmod|modprobe|depmod",
+        "syscall": "init_module|delete_module|finit_module"
+      },
+      "rationale": "Kernel modules have unrestricted kernel-level access; loading = total compromise"
+    },
+    {
+      "id": "EXEC-011",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow chroot or pivot_root in sandbox",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "syscall": "chroot|pivot_root",
+        "seccomp": "blocked"
+      },
+      "rationale": "chroot/pivot_root can be used to break out of container filesystem isolation"
+    },
+    {
+      "id": "EXEC-012",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow CAP_SYS_ADMIN or CAP_NET_ADMIN capabilities",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "capabilities_add": [
+          "CAP_SYS_ADMIN",
+          "CAP_NET_ADMIN",
+          "CAP_SYS_PTRACE",
+          "CAP_SYS_MODULE"
+        ]
+      },
+      "rationale": "These capabilities grant administrator-equivalent privileges in containers"
+    },
+    {
+      "id": "EXEC-013",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS enforce resource limits: 4 CPU / 8Gi memory / 10 minutes max per sandbox job",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "resources.cpus <= 4 and resources.memory <= 8589934592 and resources.timeout <= 600",
+      "rationale": "Resource limits prevent DoS via resource exhaustion. Tiered profiles: light (1 CPU / 512 Mi), standard (2 CPU / 4 Gi), heavy (4 CPU / 8 Gi)."
+    },
+    {
+      "id": "EXEC-014",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow fork bombs or unbounded process creation",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "syscall": "fork|clone|vfork",
+        "condition": "pid_count > max_pids * 0.8"
+      },
+      "rationale": "Fork bombs exhaust PID space, causing denial of service"
+    },
+    {
+      "id": "EXEC-015",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS apply seccomp default profile blocking dangerous syscalls",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "seccomp_profile == 'default' or seccomp_profile == 'restricted'",
+      "rationale": "Seccomp is the primary syscall filter preventing kernel exploitation"
+    },
+    {
+      "id": "EXEC-016",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow user namespace creation (unshare --user)",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "command_regex": "unshare\\s+.*--user|unshare\\s+.*-U",
+        "syscall": "unshare"
+      },
+      "rationale": "User namespaces can be exploited for privilege escalation (CVE-2013-1858, etc.)"
+    },
+    {
+      "id": "EXEC-017",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow /proc or /sys write operations",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "path": "^/proc/|^/sys/",
+        "operation": "write"
+      },
+      "rationale": "Writing to proc/sys modifies kernel state and can enable container escape"
+    },
+    {
+      "id": "EXEC-018",
+      "severity": "LOW",
+      "action": "ALWAYS",
+      "description": "ALWAYS drop all Linux capabilities not explicitly required",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "capabilities_drop == ['ALL'] and capabilities_add is minimal",
+      "rationale": "Principle of least privilege: only grant capabilities explicitly needed"
+    },
+    {
+      "id": "EXEC-019",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow direct access to Docker socket from sandbox",
+      "pattern": {
+        "tool": "sandbox_executor_run",
+        "mount": "/var/run/docker.sock"
+      },
+      "rationale": "Docker socket access = root on host; primary container escape vector"
+    },
+    {
+      "id": "EXEC-020",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow execution from /tmp or /dev/shm directories",
+      "pattern": {
+        "tool": "sandbox_executor_run|shell",
+        "exec_path": "^/tmp/|^/dev/shm/"
+      },
+      "rationale": "Execution from tmp directories is a common malware persistence technique"
+    },
+    {
+      "id": "EXEC-021",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow LD_PRELOAD or LD_LIBRARY_PATH manipulation",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "env_var": "LD_PRELOAD|LD_LIBRARY_PATH",
+        "operation": "set"
+      },
+      "rationale": "Library injection hijacks program execution for privilege escalation"
+    },
+    {
+      "id": "EXEC-022",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS enable AppArmor or SELinux profile for sandbox containers",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "apparmor_profile == 'kimi-default' or selinux_label == 'kimi.process:sandbox'",
+      "rationale": "MAC (Mandatory Access Control) provides defense in depth beyond seccomp"
+    }
+  ],
+  "rule_summary": {
+    "total": 22,
+    "critical": 5,
+    "high": 9,
+    "medium": 7,
+    "low": 1,
+    "always": 6,
+    "never": 16
+  }
+}
