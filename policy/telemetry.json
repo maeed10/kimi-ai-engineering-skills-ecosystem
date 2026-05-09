@@ -1,0 +1,111 @@
+{
+  "$schema": "https://kimi.ai/schemas/policy/telemetry/v4.2.1",
+  "policy_id": "telemetry",
+  "version": "4.2.1",
+  "description": "Telemetry collection, aggregation, and privacy rules. 8 rules governing what data is collected, how it is aggregated, and privacy constraints.",
+  "rules": [
+    {
+      "id": "TEL-001",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER collect or transmit secret values, credentials, or API keys in telemetry data",
+      "pattern": {
+        "data_type": "telemetry",
+        "content_contains_secret": true
+      },
+      "pre_scan": "secret-detection-entropy",
+      "scrubbing": "automatic",
+      "rationale": "Telemetry may be stored in centralized systems with different access controls"
+    },
+    {
+      "id": "TEL-002",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS aggregate telemetry by session and skill name, never by individual tool call arguments",
+      "pattern": {
+        "data_type": "telemetry",
+        "aggregation_level": "individual"
+      },
+      "requirement": "aggregation_level == 'session' or aggregation_level == 'skill'",
+      "rationale": "Aggregation prevents reconstruction of sensitive operations from telemetry"
+    },
+    {
+      "id": "TEL-003",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS hash or anonymize user identifiers in telemetry before aggregation",
+      "pattern": {
+        "data_type": "telemetry"
+      },
+      "requirement": "user_id_hashing == 'sha256' or user_id_anonymized == true",
+      "rationale": "Privacy protection: telemetry should not be personally identifiable"
+    },
+    {
+      "id": "TEL-004",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER include file paths, source code snippets, or document content in telemetry",
+      "pattern": {
+        "data_type": "telemetry",
+        "content_type": "file_path|source_code|document_content"
+      },
+      "rationale": "File paths and code may reveal proprietary or sensitive information"
+    },
+    {
+      "id": "TEL-005",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS apply differential privacy (epsilon <= 1.0) when reporting aggregate statistics",
+      "pattern": {
+        "data_type": "telemetry",
+        "report_type": "aggregate"
+      },
+      "requirement": "differential_privacy_epsilon <= 1.0",
+      "rationale": "Differential privacy prevents identification of individual contributions"
+    },
+    {
+      "id": "TEL-006",
+      "severity": "LOW",
+      "action": "ALWAYS",
+      "description": "ALWAYS respect telemetry opt-out preferences — if user opts out, collect only error telemetry",
+      "pattern": {
+        "user_preference": "opt_out"
+      },
+      "requirement": "collection_scope == 'errors_only' and no_identifiable_data == true",
+      "rationale": "User consent is required for non-essential data collection"
+    },
+    {
+      "id": "TEL-007",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER retain raw telemetry logs beyond 30 days; aggregate and purge",
+      "pattern": {
+        "data_type": "telemetry",
+        "retention": "raw"
+      },
+      "requirement": "retention_days <= 30 and auto_purge == true",
+      "rationale": "Data minimization principle: don't keep data longer than necessary"
+    },
+    {
+      "id": "TEL-008",
+      "severity": "LOW",
+      "action": "ALWAYS",
+      "description": "ALWAYS encrypt telemetry data in transit and at rest",
+      "pattern": {
+        "data_type": "telemetry",
+        "storage_or_transmission": true
+      },
+      "requirement": "tls_1_2_plus == true and at_rest_encryption == 'AES-256-GCM'",
+      "rationale": "Encryption protects telemetry from interception and unauthorized access"
+    }
+  ],
+  "rule_summary": {
+    "total": 8,
+    "critical": 0,
+    "high": 2,
+    "medium": 4,
+    "low": 2,
+    "always": 5,
+    "never": 3
+  }
+}

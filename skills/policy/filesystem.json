@@ -1,0 +1,85 @@
+{
+  "version": "4.0.0",
+  "rules": [
+    {
+      "rule_id": "FS-001",
+      "version": "4.0.0",
+      "rule_type": "filesystem",
+      "directive": "NEVER",
+      "severity": "critical",
+      "description": "Prevent writing to system directories",
+      "conditions": {
+        "operator": "ANY_OF",
+        "predicates": [
+          { "field": "path", "operator": "prefix", "value": "/etc" },
+          { "field": "path", "operator": "prefix", "value": "/usr/bin" },
+          { "field": "path", "operator": "prefix", "value": "/bin" },
+          { "field": "path", "operator": "prefix", "value": "/sbin" },
+          { "field": "path", "operator": "prefix", "value": "/sys" },
+          { "field": "path", "operator": "prefix", "value": "/proc" },
+          { "field": "path", "operator": "prefix", "value": "/dev" },
+          { "field": "path", "operator": "prefix", "value": "C:\\\\Windows" },
+          { "field": "path", "operator": "prefix", "value": "C:\\\\Program Files" }
+        ]
+      },
+      "action": "block",
+      "applies_to": { "tools": ["write_file", "edit_file", "shell", "move"], "phases": ["*"] },
+      "metadata": { "rationale": "System directory writes compromise host integrity" }
+    },
+    {
+      "rule_id": "FS-002",
+      "version": "4.0.0",
+      "rule_type": "filesystem",
+      "directive": "ALWAYS",
+      "severity": "error",
+      "description": "Writable paths must be declared",
+      "conditions": {
+        "operator": "ALL_OF",
+        "predicates": [
+          { "field": "path", "operator": "prefix", "value": "/tmp" }
+        ]
+      },
+      "action": "allow",
+      "applies_to": { "tools": ["write_file", "edit_file", "shell"], "phases": ["*"] },
+      "metadata": { "rationale": "Only /tmp is guaranteed writable in sandbox" }
+    },
+    {
+      "rule_id": "FS-003",
+      "version": "4.0.0",
+      "rule_type": "filesystem",
+      "directive": "NEVER",
+      "severity": "critical",
+      "description": "Prevent path traversal escapes",
+      "conditions": {
+        "operator": "ANY_OF",
+        "predicates": [
+          { "field": "path", "operator": "contains", "value": ".." },
+          { "field": "path", "operator": "regex", "value": "\\\\.\\\\." }
+        ]
+      },
+      "action": "block",
+      "applies_to": { "tools": ["write_file", "edit_file", "read_file", "shell"], "phases": ["*"] },
+      "metadata": { "rationale": "Path traversal can escape sandbox boundaries" }
+    },
+    {
+      "rule_id": "FS-004",
+      "version": "4.0.0",
+      "rule_type": "filesystem",
+      "directive": "NEVER",
+      "severity": "error",
+      "description": "Prevent writes to SSH and credential directories",
+      "conditions": {
+        "operator": "ANY_OF",
+        "predicates": [
+          { "field": "path", "operator": "prefix", "value": "~/.ssh" },
+          { "field": "path", "operator": "prefix", "value": "~/.aws" },
+          { "field": "path", "operator": "prefix", "value": "~/.kube" },
+          { "field": "path", "operator": "prefix", "value": "~/.docker" }
+        ]
+      },
+      "action": "block",
+      "applies_to": { "tools": ["write_file", "edit_file", "shell"], "phases": ["*"] },
+      "metadata": { "rationale": "Credential directories must not be mutated by sandboxed code" }
+    }
+  ]
+}

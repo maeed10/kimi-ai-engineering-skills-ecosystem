@@ -1,0 +1,84 @@
+{
+  "version": "4.0.0",
+  "rules": [
+    {
+      "rule_id": "EXEC-001",
+      "version": "4.0.0",
+      "rule_type": "execution",
+      "directive": "NEVER",
+      "severity": "critical",
+      "description": "Block recursive deletion of system directories",
+      "conditions": {
+        "operator": "ANY_OF",
+        "predicates": [
+          { "field": "command", "operator": "regex", "value": "rm\\s+-rf\\s+/\\s*$" },
+          { "field": "command", "operator": "regex", "value": "rm\\s+-rf\\s+/etc" },
+          { "field": "command", "operator": "regex", "value": "rm\\s+-rf\\s+/usr" },
+          { "field": "command", "operator": "regex", "value": "rm\\s+-rf\\s+/bin" },
+          { "field": "command", "operator": "regex", "value": "rm\\s+-rf\\s+/sys" },
+          { "field": "command", "operator": "regex", "value": "rm\\s+-rf\\s+/proc" }
+        ]
+      },
+      "action": "block",
+      "applies_to": { "tools": ["shell"], "phases": ["*"] },
+      "metadata": { "rationale": "Recursive system deletion is catastrophic" }
+    },
+    {
+      "rule_id": "EXEC-002",
+      "version": "4.0.0",
+      "rule_type": "execution",
+      "directive": "NEVER",
+      "severity": "critical",
+      "description": "Block privilege escalation commands",
+      "conditions": {
+        "operator": "ANY_OF",
+        "predicates": [
+          { "field": "command", "operator": "regex", "value": "\\bsudo\\b" },
+          { "field": "command", "operator": "regex", "value": "\\bsu\\s+-" },
+          { "field": "command", "operator": "regex", "value": "\\b pkexec\\b" }
+        ]
+      },
+      "action": "block",
+      "applies_to": { "tools": ["shell"], "phases": ["*"] },
+      "metadata": { "rationale": "Privilege escalation inside sandbox breaks isolation model" }
+    },
+    {
+      "rule_id": "EXEC-003",
+      "version": "4.0.0",
+      "rule_type": "execution",
+      "directive": "NEVER",
+      "severity": "error",
+      "description": "Block raw kernel module operations",
+      "conditions": {
+        "operator": "ANY_OF",
+        "predicates": [
+          { "field": "command", "operator": "regex", "value": "\\binsmod\\b" },
+          { "field": "command", "operator": "regex", "value": "\\brmmod\\b" },
+          { "field": "command", "operator": "regex", "value": "\\bmodprobe\\b" }
+        ]
+      },
+      "action": "block",
+      "applies_to": { "tools": ["shell"], "phases": ["*"] },
+      "metadata": { "rationale": "Kernel module operations require host privileges" }
+    },
+    {
+      "rule_id": "EXEC-004",
+      "version": "4.0.0",
+      "rule_type": "execution",
+      "directive": "NEVER",
+      "severity": "error",
+      "description": "Block container escape attempts",
+      "conditions": {
+        "operator": "ANY_OF",
+        "predicates": [
+          { "field": "command", "operator": "regex", "value": "docker\\s+run\\s+.*--privileged" },
+          { "field": "command", "operator": "regex", "value": "docker\\s+run\\s+.*-v\\s+/:/host" },
+          { "field": "command", "operator": "regex", "value": "mount\\s+/dev/.*\\s+/mnt" }
+        ]
+      },
+      "action": "block",
+      "applies_to": { "tools": ["shell"], "phases": ["*"] },
+      "metadata": { "rationale": "Container escape breaks sandbox isolation" }
+    }
+  ]
+}

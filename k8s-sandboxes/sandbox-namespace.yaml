@@ -1,0 +1,148 @@
+# sandbox-namespace.yaml
+# Kimi AI Engineering Skills Ecosystem v4.2.1
+# Kubernetes namespace with Pod Security Standards (restricted)
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kimi-sandbox
+  labels:
+    app.kubernetes.io/name: kimi-sandbox
+    app.kubernetes.io/part-of: kimi
+    app.kubernetes.io/version: "4.2.1"
+    # Pod Security Standards: restricted (enforced)
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+    security.kimi.io/enforcement: strict
+---
+# NetworkPolicy: deny-all ingress/egress (default deny)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# NetworkPolicy: allow DNS egress only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# ResourceQuota: enforce resource limits
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: kimi-sandbox-quota
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 64Gi
+    limits.cpu: "20"
+    limits.memory: 64Gi
+    pods: "10"
+    count/jobs.batch: "10"
+---
+# LimitRange: default resource constraints
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: kimi-sandbox-limits
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "2"
+        memory: 4Gi
+      defaultRequest:
+        cpu: "100m"
+        memory: 256Mi
+      max:
+        cpu: "2"
+        memory: 4Gi
+      min:
+        cpu: "50m"
+        memory: 64Mi
+    - type: Pod
+      max:
+        cpu: "2"
+        memory: 4Gi
+---
+# ServiceAccount for sandbox pods
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kimi-sandbox-sa
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+automountServiceAccountToken: false   # Disable default token mount
+---
+# Role: minimal permissions for sandbox
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kimi-sandbox-role
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/status"]
+    verbs: ["get"]
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kimi-sandbox-rolebinding
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+subjects:
+  - kind: ServiceAccount
+    name: kimi-sandbox-sa
+    namespace: kimi-sandbox
+roleRef:
+  kind: Role
+  name: kimi-sandbox-role
+  apiGroup: rbac.authorization.k8s.io
