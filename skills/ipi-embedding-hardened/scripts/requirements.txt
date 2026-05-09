@@ -1,0 +1,26 @@
+# IPI Embedding Hardened — Production Dependencies
+# Install: pip install -r requirements.txt
+
+# Core ensemble embedding models
+sentence-transformers>=2.3.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# OpenAI embedding support (optional — cloud model)
+openai>=1.12.0
+
+# Probe layer
+# Requires a local or remote LLM backend. Supported backends:
+#   - transformers + torch (local HuggingFace models)
+#   - openai (cloud API)
+#   - ollama (local via HTTP)
+transformers>=4.36.0
+torch>=2.1.0
+
+# Utilities
+tiktoken>=0.5.0          # Token counting for entropy analysis
+requests>=2.31.0         # HTTP probe backend
+
+# Development / testing
+pytest>=7.4.0
+pytest-cov>=4.1.0

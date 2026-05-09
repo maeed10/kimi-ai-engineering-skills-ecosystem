@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: kimi-sandbox-quota
+  namespace: kimi-sandboxes
+spec:
+  hard:
+    count/jobs.batch: "50"
+    count/pods: "50"
+    requests.cpu: "20"
+    requests.memory: 64Gi
+    limits.cpu: "20"
+    limits.memory: 64Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: kimi-sandbox-limits
+  namespace: kimi-sandboxes
+spec:
+  limits:
+  - default:
+      cpu: "2"
+      memory: 4Gi
+      ephemeral-storage: 1Gi
+    defaultRequest:
+      cpu: 500m
+      memory: 512Mi
+    type: Container

@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sandbox-executor-config
+  namespace: kimi-sandbox
+data:
+  backend: "kubernetes"
+  default_timeout_seconds: "600"
+  default_memory_mb: "4096"
+  default_cpus: "2.0"
+  image_pull_policy: "IfNotPresent"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: policy-rules
+  namespace: kimi-sandbox
+data:
+  enforce_restricted: "true"
+  require_read_only_root_fs: "true"
+  disallow_privileged: "true"

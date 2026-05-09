@@ -1,0 +1,18 @@
+{
+  "ecosystem_version": "4.0.0",
+  "manifest_hash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  "files": [
+    {
+      "path": "filesystem.json",
+      "sha256": "1c312ef5e763ba9e5f87d9f3f3f350d3e04c9a922a2550442303355f4f208490"
+    },
+    {
+      "path": "network.json",
+      "sha256": "492ab87483a112b3c63eae667b94c4d30010e9a21b1f20cf0ea156c4bf14d483"
+    },
+    {
+      "path": "execution.json",
+      "sha256": "c4bbfe40975089197d1948cd856c8ba67c6515a8f7666c9e58022b6bb0097bde"
+    }
+  ]
+}

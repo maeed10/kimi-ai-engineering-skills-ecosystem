@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "~/.kimi/scripts/mcp-github-wrapper.sh",
+      "args": [],
+      "env": {}
+    },
+    "e2b": {
+      "command": "npx",
+      "args": ["-y", "@e2b/mcp-server"],
+      "env": {
+        "E2B_API_KEY": "YOUR_E2B_API_KEY_HERE"
+      }
+    },
+    "context7": {
+      "url": "https://mcp.context7.com/mcp"
+    }
+  }
+}

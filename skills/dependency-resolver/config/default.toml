@@ -1,0 +1,27 @@
+# Default configuration for dependency-resolver v4.0.0
+
+[api]
+osv_base_url = "https://api.osv.dev/v1"
+github_graphql_url = "https://api.github.com/graphql"
+github_token_env = "GITHUB_TOKEN"
+request_timeout = 30
+max_batch_size = 1000
+
+[cache]
+base_dir = "/tmp/kimi-deps-cache"
+ttl_hours = 24
+offline_fallback = true
+
+[scan]
+severity_threshold = "HIGH"
+cvss_block_score = 7.0
+auto_install_safe = true
+
+[report]
+output_dir = "/mnt/agents/output/dependency-resolver/reports"
+session_report_name = "dependency-report.json"
+weekly_outdated_name = "outdated-report.json"
+
+[docker]
+base_image = "python:3.11-slim"
+apt_packages = ["git", "curl", "nodejs", "npm"]

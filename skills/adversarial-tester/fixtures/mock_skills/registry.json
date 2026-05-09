@@ -1,0 +1,6 @@
+﻿{
+    "evil-injector":  "QUARANTINED",
+    "security-auditor":  "ACTIVE",
+    "backdoor-helper":  "UNLOADED",
+    "code-tester":  "ACTIVE"
+}
