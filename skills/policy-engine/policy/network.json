@@ -1,0 +1,231 @@
+{
+  "$schema": "https://kimi.ai/schemas/policy/network/v4.2.1",
+  "policy_id": "network",
+  "version": "4.2.1",
+  "description": "Network access rules. 18 rules covering HTTPS enforcement, policy engine isolation, DNS tunneling prevention, and egress control.",
+  "default_network_policy": "deny_all",
+  "rules": [
+    {
+      "id": "NET-001",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow unencrypted HTTP connections from sandbox",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "url_regex": "^http://"
+      },
+      "rationale": "All outbound communication must be encrypted to prevent data interception"
+    },
+    {
+      "id": "NET-002",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow sandbox network access to policy engine API",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "destination": "policy-engine",
+        "port": "8080|8443"
+      },
+      "rationale": "Policy engine must be network-isolated from sandboxed code to prevent rule tampering"
+    },
+    {
+      "id": "NET-003",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow DNS over non-standard ports or DNS tunneling patterns",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "protocol": "udp",
+        "port": "53",
+        "payload_entropy": "> 0.8",
+        "query_size": "> 200 bytes"
+      },
+      "rationale": "DNS tunneling is a common exfiltration technique detected by egress-dpi-guard"
+    },
+    {
+      "id": "NET-004",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow connections to private IP ranges from sandbox",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "destination_ip": "10.0.0.0/8|172.16.0.0/12|192.168.0.0/16|127.0.0.0/8|169.254.0.0/16"
+      },
+      "rationale": "Prevents sandbox from scanning or attacking internal network services"
+    },
+    {
+      "id": "NET-005",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS enforce HTTPS-only for all external API calls",
+      "pattern": {
+        "tool": "shell|api_call",
+        "protocol": "https"
+      },
+      "requirement": "tls_version >= 1.2 and certificate_valid == true",
+      "rationale": "TLS 1.2+ with valid certificates is the minimum for secure communication"
+    },
+    {
+      "id": "NET-006",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow raw socket creation in sandbox",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "syscall": "socket",
+        "socket_type": "SOCK_RAW"
+      },
+      "rationale": "Raw sockets enable network scanning, spoofing, and man-in-the-middle attacks"
+    },
+    {
+      "id": "NET-007",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow connection to known malicious IP ranges or C2 servers",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "threat_intelligence_match": true
+      },
+      "rationale": "Integrates with threat intelligence feeds to block known malicious infrastructure"
+    },
+    {
+      "id": "NET-008",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow ICMP-based covert channels (ping tunneling)",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "protocol": "icmp",
+        "packet_size": "> 64 bytes",
+        "frequency": "> 10/min"
+      },
+      "rationale": "ICMP tunneling (icmpsh, ptunnel) bypasses standard network controls"
+    },
+    {
+      "id": "NET-009",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow WebSocket connections from sandbox without explicit approval",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "protocol": "wss?://"
+      },
+      "rationale": "WebSockets create persistent bidirectional channels that bypass request/response inspection"
+    },
+    {
+      "id": "NET-010",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS log all network connections from sandbox with destination and payload size",
+      "pattern": {
+        "tool": "sandbox_executor_run"
+      },
+      "requirement": "connection_logged == true",
+      "rationale": "All network activity must be auditable for incident response"
+    },
+    {
+      "id": "NET-011",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow connections to localhost TCP services from sandbox. Unix domain sockets are explicitly permitted ONLY for policy-engine and phase-controller IPC.",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "destination": "127.0.0.1|localhost|::1",
+        "port": "*"
+      },
+      "rationale": "Prevents sandbox from exploiting TCP services running on the host. Unix domain sockets are filesystem-bound and not reachable from network-isolated containers, making them safe for L0 daemon IPC."
+    },
+    {
+      "id": "NET-012",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow SMTP or email sending from sandbox",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "port": "25|465|587|2525",
+        "protocol": "tcp"
+      },
+      "rationale": "Email sending is a common exfiltration and phishing vector"
+    },
+    {
+      "id": "NET-013",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS apply rate limiting to all outbound connections",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "connection_type": "outbound"
+      },
+      "requirement": "rate <= 100 connections/minute per destination",
+      "rationale": "Rate limiting prevents DoS and slows down data exfiltration"
+    },
+    {
+      "id": "NET-014",
+      "severity": "LOW",
+      "action": "NEVER",
+      "description": "NEVER allow FTP connections (unencrypted file transfer)",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "port": "20|21",
+        "protocol": "tcp"
+      },
+      "rationale": "FTP is unencrypted and deprecated; use HTTPS/SFTP instead"
+    },
+    {
+      "id": "NET-015",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow SSH connections from sandbox",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "port": "22",
+        "protocol": "tcp"
+      },
+      "rationale": "SSH from sandbox enables pivoting to other systems"
+    },
+    {
+      "id": "NET-016",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow reverse shell or bind shell network patterns",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "command_regex": "nc\\s+-[e,l]|bash\\s+-i|sh\\s+-i|python\\s+-c\\s*.*socket.*dup2|ruby\\s+-rsocket"
+      },
+      "rationale": "Reverse/bind shells are definitive indicators of compromise"
+    },
+    {
+      "id": "NET-017",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS validate TLS certificate hostname matches the requested domain",
+      "pattern": {
+        "tool": "shell|api_call",
+        "protocol": "https"
+      },
+      "requirement": "hostname_verification == true",
+      "rationale": "Prevents MITM attacks using valid certificates for wrong domains"
+    },
+    {
+      "id": "NET-018",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow network access when sandbox network is explicitly declared as 'none' and a network request is detected",
+      "pattern": {
+        "tool": "shell|sandbox_executor_run",
+        "sandbox_network": "none",
+        "network_access": true
+      },
+      "rationale": "If network is declared as none, any network request is a policy violation. Curated HTTPS egress is permitted when network is declared as restricted and validated against the capability manifest."
+    }
+  ],
+  "rule_summary": {
+    "total": 18,
+    "critical": 5,
+    "high": 6,
+    "medium": 6,
+    "low": 1,
+    "always": 4,
+    "never": 14
+  }
+}

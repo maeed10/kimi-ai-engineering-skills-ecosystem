@@ -1,0 +1,302 @@
+# sandbox-executor.yaml — Production Configuration
+# Kimi AI Engineering Skills Ecosystem v4.2.1
+# Fixes applied from ECOSYSTEM-OPERATIONS.md audit:
+#   - verify_signatures: true (was: false with env bypass)
+#   - SHA-256 verification: enabled (was: disabled for local dev)
+#   - All 9 policy files referenced (was: only 3)
+#   - Security-critical routing enforced (was: missing cost-tier-security-gate)
+
+deployment:
+  environment: production   # was: development (CRITICAL FIX)
+  profile: full-sandbox
+  
+backends:
+  - kubernetes:
+      host: k3s://rancher-desktop
+      namespace: kimi-sandbox
+      context: rancher-desktop
+      pod_security_standard: restricted
+      network_policies:
+        ingress: deny-all
+        egress: deny-all
+        exceptions:
+          - DNS (UDP/53) to kube-system/coredns
+      default_seccomp_profile: seccomp-default.json
+      capabilities:
+        drop: ALL
+        add: []
+      resource_limits:
+        max_cpus: 20
+        max_memory: 64Gi
+        max_pids: 100
+        max_jobs: 50
+        timeout: 600s
+      # Tiered resource profiles for different workload sizes
+      resource_profiles:
+        light:
+          max_cpus: 1
+          max_memory: 512Mi
+          timeout: 60s
+        standard:
+          max_cpus: 2
+          max_memory: 4Gi
+          timeout: 600s
+        heavy:
+          max_cpus: 4
+          max_memory: 8Gi
+          timeout: 600s
+      # SHA-256 image verification — ALWAYS enabled (CRITICAL FIX)
+      image_verification:
+        enabled: true   # was: false for local dev
+        verify_sha256: true   # was: disabled
+        required: true   # was: optional
+        on_failure: BLOCK   # BLOCK execution if image hash mismatch
+        # Registry allowlist
+        trusted_registries:
+          - docker.io/library
+          - ghcr.io/maeed10
+          - registry.hub.docker.com/library
+      labels:
+        app.kubernetes.io/part-of: kimi
+        security.kimi.io/enforcement: strict
+
+  - docker:
+      host: unix:///var/run/docker.sock
+      seccomp_profile: seccomp-default.json
+      apparmor_profile: kimi-default
+      security_opts:
+        - no-new-privileges:true
+        - label:level:s0:c123,c456
+      resource_limits:
+        max_cpus: 4
+        max_memory: 8Gi
+        max_pids: 100
+        timeout: 600s
+      resource_profiles:
+        light:
+          max_cpus: 1
+          max_memory: 512Mi
+          timeout: 60s
+        standard:
+          max_cpus: 2
+          max_memory: 4Gi
+          timeout: 600s
+        heavy:
+          max_cpus: 4
+          max_memory: 8Gi
+          timeout: 600s
+      # SHA-256 image verification — ALWAYS enabled (CRITICAL FIX)
+      image_verification:
+        enabled: true
+        verify_sha256: true
+        required: true
+        on_failure: BLOCK
+        trusted_registries:
+          - docker.io/library
+          - ghcr.io/maeed10
+
+# Policy configuration — ALL 9 policy files (was: only 3)
+policy:
+  engine:
+    endpoint: http://127.0.0.1:9100/validate
+    fail_closed: true   # ALWAYS fail closed (CRITICAL FIX)
+    timeout: 100ms
+    retry:
+      max_retries: 3
+      backoff: exponential
+      # On persistent failure: BLOCK (never allow without policy check)
+      on_persistent_failure: BLOCK   # was: warn
+  
+  # verify_signatures: TRUE — NO bypass mechanism (CRITICAL FIX)
+  verify_signatures: true   # was: false
+  # KIMI_INSECURE_SKIP_SIGNATURE_VERIFY env var is REMOVED — no bypass exists
+  
+  # ALL 9 policy files with SHA-256 integrity verification
+  policy_files:
+    - path: /app/.kimi/policy/filesystem.json
+      sha256: "REQUIRED"   # Must match manifest
+      required: true
+    - path: /app/.kimi/policy/network.json
+      sha256: "REQUIRED"
+      required: true
+    - path: /app/.kimi/policy/execution.json
+      sha256: "REQUIRED"
+      required: true
+    - path: /app/.kimi/policy/gemini.json
+      sha256: "REQUIRED"
+      required: true
+    - path: /app/.kimi/policy/sandbox.json
+      sha256: "REQUIRED"
+      required: true
+    - path: /app/.kimi/policy/mcp.json
+      sha256: "REQUIRED"
+      required: true
+    - path: /app/.kimi/policy/secrets.json
+      sha256: "REQUIRED"
+      required: true
+    - path: /app/.kimi/policy/skill_registry.json
+      sha256: "REQUIRED"
+      required: true
+    - path: /app/.kimi/policy/telemetry.json
+      sha256: "REQUIRED"
+      required: false   # Optional, loaded if present
+  
+  # Integrity manifest
+  manifest:
+    path: /app/.kimi/policy/manifest.json
+    validate_on_load: true
+    on_mismatch: BLOCK
+  
+  rule_summary:
+    total: 148
+    always: 59
+    never: 89
+    version: "4.2.1"
+
+# External model routing — with cost-tier-security-gate (was: missing)
+routing:
+  multi_model_router:
+    endpoint: http://127.0.0.1:9100/validate
+    daily_request_cap: 950
+    # Security-critical routing gate (CRITICAL FIX)
+    cost_tier_security_gate:
+      enabled: true   # was: not configured
+      block_security_critical: true   # NEVER route SECURITY-CRITICAL tasks externally
+      allowed_phases:
+        - INGEST
+        - PLAN
+        - DELIVER
+        - REMEMBER
+      blocked_phases:
+        - ASSESS
+        - EXECUTE
+        - VALIDATE
+      require_human_confirmation: true
+      audit_all_routing: true
+  
+  post_gemini_validator:
+    enabled: true
+    deterministic_check: true
+    on_validation_failure: BLOCK
+
+# Secret management — local K8s secrets with file descriptor injection
+secrets:
+  backend: hashicorp_vault
+  namespace: kimi-sandbox
+  auth_method: service_account
+  injection_method: file_descriptor   # NEVER env vars (SEC-003)
+  mount_path: /run/secrets
+  output_scrubbing:
+    enabled: true
+    method: "regex + entropy"
+    entropy_threshold: 3.5
+    block_on_detection: true
+  rotation:
+    short_lived: per_session
+    long_lived: 90_days
+
+  # API keys stored as K8s Secrets, mounted read-only into sandbox
+  key_references:
+    google_api_key: "file:///run/secrets/gemini-api-key/api-key"
+    github_token: "file:///run/secrets/github-token/token"
+    kimi_api_key: "oauth:/kimi-code"   # OAuth-based, no static key
+
+# Sandbox hardening
+sandbox:
+  # Read-only root filesystem — ALWAYS
+  read_only_rootfs: true
+  
+  # User namespace — non-root
+  run_as_user:
+    uid: 1000
+    gid: 1000
+  
+  # No new privileges
+  no_new_privileges: true
+  
+  # Drop ALL capabilities
+  capabilities:
+    drop: [ALL]
+    add: []
+  
+  # Seccomp profile
+  seccomp:
+    profile: /app/.kimi/seccomp-default.json
+    enforce: true
+    on_violation: BLOCK
+  
+  # Network isolation
+  network:
+    default: none
+    dns_resolution_only: false
+    curated_egress:
+      enabled: true
+      allowed_ports: [443]
+      allowed_protocols: [tcp]
+      # HTTPS-only egress to curated destinations (package registries, APIs).
+      # Enforced by NetworkPolicy allow-https-egress and NET-001 (always HTTPS).
+  
+  # Resource limits per job
+  resources:
+    max_cpus: 4
+    max_memory: 8Gi
+    max_pids: 100
+    timeout: 600s
+    max_file_size: 1Gi
+
+# Health endpoints for all L0 skills (was: missing)
+health:
+  enabled: true
+  endpoints:
+    - /health    # Liveness
+    - /ready     # Readiness
+    - /metrics   # Prometheus metrics
+  port: 8080
+  update_interval: 30s
+  
+  # L0 skill health checks
+  l0_skills:
+    - policy-engine
+    - sandbox-executor
+    - phase-controller
+    - ipi-defender
+    - secret-manager
+    - supply-chain-verifier
+    - tool-execution-gateway
+    - multi-model-router
+    - cost-tier-security-gate
+    - post-gemini-validator
+
+# Telemetry and tracing (was: missing)
+telemetry:
+  aggregator:
+    enabled: true
+    endpoint: https://localhost:9090
+    collection_interval: 60s
+  
+  kimi_trace:
+    enabled: true
+    session_tracing: true
+    skill_invocation_tracing: true
+    policy_decision_tracing: true
+    
+  # Privacy controls
+  privacy:
+    anonymize_user_ids: true
+    exclude_file_paths: true
+    exclude_source_code: true
+    differential_privacy_epsilon: 1.0
+    retention_days: 30
+
+# Vault integration (for secret storage)
+vault:
+  enabled: true
+  address: https://vault.kimi.internal:8200
+  auth:
+    method: kubernetes
+    role: kimi-cli
+    service_account: kimi-cli-sa
+  secrets_path: secrets/
+  transit_engine:
+    enabled: true
+    key_name: kimi-data-key
