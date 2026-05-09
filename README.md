@@ -1,7 +1,7 @@
 # Kimi AI Engineering Skills Ecosystem
 
 > **Version:** 4.2.1  
-> **License:** MIT
+> **License:** Apache 2.00
 
 A modular AI agent framework for software engineering built on the Kimi Code CLI skill system. It replaces unstructured code generation with a governed pipeline: tasks flow through seven phases, every tool call is audited against machine-readable policies, and all execution happens inside isolated sandboxes.
 
