@@ -1,0 +1,137 @@
+{
+  "$schema": "https://kimi.ai/schemas/policy/skill_registry/v4.2.1",
+  "policy_id": "skill_registry",
+  "version": "4.2.1",
+  "description": "Skill lifecycle and integrity rules. 10 rules governing skill loading, verification, sandbox capability enforcement, and lifecycle transitions.",
+  "rules": [
+    {
+      "id": "SRG-001",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER load a skill whose SHA-256 signature does not match the manifest or whose signature verification fails",
+      "pattern": {
+        "tool": "skill-registry",
+        "action": "load|activate"
+      },
+      "requirement": "verify_signatures == true and signature_valid == true and hash_matches_manifest == true",
+      "rationale": "Unsigned or tampered skills are the primary supply chain attack vector"
+    },
+    {
+      "id": "SRG-002",
+      "severity": "CRITICAL",
+      "action": "NEVER",
+      "description": "NEVER allow a skill to request capabilities beyond its declared manifest",
+      "pattern": {
+        "tool": "skill-registry",
+        "action": "validate_capabilities"
+      },
+      "requirement": "runtime_capabilities <= declared_capabilities",
+      "rationale": "Capability escalation enables sandbox escape and privilege abuse"
+    },
+    {
+      "id": "SRG-003",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS verify TUF/Sigstore signatures on skill packages before registration",
+      "pattern": {
+        "tool": "skill-registry",
+        "action": "register"
+      },
+      "requirement": "tuf_signature_valid == true or sigstore_signature_valid == true",
+      "rationale": "Cryptographic provenance ensures skills come from trusted publishers"
+    },
+    {
+      "id": "SRG-004",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER allow skills to self-modify or update their own code or configuration",
+      "pattern": {
+        "tool": "write_file|edit_file|shell",
+        "target": "self",
+        "path_regex": "\\.kimi/skills/[^/]+/(SKILL\\.md|scripts/|references/)"
+      },
+      "rationale": "Self-modifying skills bypass the registry's integrity controls"
+    },
+    {
+      "id": "SRG-005",
+      "severity": "HIGH",
+      "action": "ALWAYS",
+      "description": "ALWAYS enforce the 3-skill concurrency ceiling for L2-L8 skills",
+      "pattern": {
+        "tool": "skill-registry",
+        "action": "activate"
+      },
+      "requirement": "active_l2_l8_skills <= 3",
+      "rationale": "Concurrency ceiling prevents resource exhaustion and complexity explosion"
+    },
+    {
+      "id": "SRG-006",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS validate skill dependencies are satisfied before activation",
+      "pattern": {
+        "tool": "skill-registry",
+        "action": "activate"
+      },
+      "requirement": "all_dependencies_loaded == true and no_version_conflicts == true",
+      "rationale": "Missing dependencies cause runtime failures that may bypass safety checks"
+    },
+    {
+      "id": "SRG-007",
+      "severity": "MEDIUM",
+      "action": "NEVER",
+      "description": "NEVER allow L0 enforcement skills to be unloaded during an active session",
+      "pattern": {
+        "tool": "skill-registry",
+        "action": "unload",
+        "skill_layer": "L0"
+      },
+      "rationale": "Unloading L0 skills during a session completely disables safety"
+    },
+    {
+      "id": "SRG-008",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS log skill lifecycle transitions (REGISTERED→LOADED→ACTIVE→UNLOADED→PURGED) with timestamps",
+      "pattern": {
+        "tool": "skill-registry",
+        "action": "transition"
+      },
+      "requirement": "transition_logged == true and attestation_recorded == true",
+      "rationale": "Lifecycle audit trail enables forensic analysis of skill activity"
+    },
+    {
+      "id": "SRG-009",
+      "severity": "HIGH",
+      "action": "NEVER",
+      "description": "NEVER load skills from untrusted sources or without provenance chain",
+      "pattern": {
+        "tool": "skill-registry",
+        "action": "register|load"
+      },
+      "requirement": "source_trusted == true and provenance_verified == true",
+      "rationale": "Skills from untrusted sources may contain malicious code or backdoors"
+    },
+    {
+      "id": "SRG-010",
+      "severity": "MEDIUM",
+      "action": "ALWAYS",
+      "description": "ALWAYS purge skill artifacts and temporary data when a skill is PURGED",
+      "pattern": {
+        "tool": "skill-registry",
+        "action": "purge"
+      },
+      "requirement": "artifacts_deleted == true and temp_data_cleared == true and cache_invalidated == true",
+      "rationale": "Prevents data leakage between sessions through residual skill state"
+    }
+  ],
+  "rule_summary": {
+    "total": 10,
+    "critical": 2,
+    "high": 4,
+    "medium": 4,
+    "low": 0,
+    "always": 5,
+    "never": 5
+  }
+}

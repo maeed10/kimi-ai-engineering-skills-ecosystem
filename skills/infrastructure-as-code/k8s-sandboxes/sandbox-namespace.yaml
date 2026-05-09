@@ -1,0 +1,184 @@
+# sandbox-namespace.yaml
+# Kimi AI Engineering Skills Ecosystem v4.2.1
+# DEPRECATED: This monolithic manifest is kept for quick-start convenience.
+# Recommended: Use 01-namespace.yaml + 02-rbac.yaml + 03-network-policies.yaml +
+#              04-configmaps.yaml + 05-sandbox-job-template.yaml + 06-resource-governance.yaml
+#              for production deployments.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kimi-sandbox
+  labels:
+    app.kubernetes.io/name: kimi-sandbox
+    app.kubernetes.io/part-of: kimi
+    app.kubernetes.io/version: "4.2.1"
+    # Pod Security Standards: restricted (enforced)
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+    security.kimi.io/enforcement: strict
+---
+# NetworkPolicy: deny-all ingress/egress (default deny)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# NetworkPolicy: allow DNS egress only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# NetworkPolicy: allow curated HTTPS egress (via cluster-local proxy)
+# If no proxy exists in kimi-egress-proxy namespace, apply the fallback
+# allow-https-egress-curated policy from 03-network-policies.yaml instead.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-https-egress
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kimi-egress-proxy
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# ResourceQuota: enforce resource limits
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: kimi-sandbox-quota
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 64Gi
+    limits.cpu: "20"
+    limits.memory: 64Gi
+    pods: "50"
+    count/jobs.batch: "50"
+---
+# LimitRange: default resource constraints
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: kimi-sandbox-limits
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "2"
+        memory: 4Gi
+        ephemeral-storage: 1Gi
+      defaultRequest:
+        cpu: "500m"
+        memory: 512Mi
+        ephemeral-storage: 128Mi
+      max:
+        cpu: "4"
+        memory: 8Gi
+        ephemeral-storage: 1Gi
+      min:
+        cpu: "50m"
+        memory: 64Mi
+    - type: Pod
+      max:
+        cpu: "4"
+        memory: 8Gi
+---
+# ServiceAccount for sandbox executor
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kimi-sandbox-executor
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+automountServiceAccountToken: false
+---
+# Role: minimal permissions for sandbox executor
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kimi-sandbox-role
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/status"]
+    verbs: ["get"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+    resourceNames: ["gemini-api-key", "kimi-api-key", "github-token"]
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kimi-sandbox-binding
+  namespace: kimi-sandbox
+  labels:
+    app.kubernetes.io/part-of: kimi
+subjects:
+  - kind: ServiceAccount
+    name: kimi-sandbox-executor
+    namespace: kimi-sandbox
+roleRef:
+  kind: Role
+  name: kimi-sandbox-role
+  apiGroup: rbac.authorization.k8s.io

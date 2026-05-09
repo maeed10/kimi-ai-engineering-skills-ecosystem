@@ -1,0 +1,154 @@
+version: "1.0"
+description: >
+  PRODUCTION profile for sandbox-executor.
+  Strict, hardened configuration. All security controls are enforced.
+  Any weakening of these settings requires C-level risk acceptance
+  and must be tracked as an exception in the security register.
+
+_inherits: base.yaml
+_environment: production
+
+sandbox:
+  executor:
+    # Immutable, signed production image.
+    image: sandbox-executor:v1.4.2-prod
+    image_pull_policy: Never
+    max_concurrent_jobs: 10
+    default_timeout: 5m
+    hot_reload: false
+
+security:
+  # === CAPABILITIES ===
+  # Production drops ALL capabilities. No additions permitted.
+  # This is a NON-NEGOTIABLE control (see security_settings_matrix.md).
+  capability_additions: []
+
+  # === FILESYSTEM HARDENING ===
+  read_only_rootfs: true
+  no_new_privileges: true
+  # Additional production-only hardening.
+  hidepid: 2
+  proc_mount: default
+
+  # === IMAGE VERIFICATION ===
+  # Production enforces signature verification (Key Behavior #1).
+  image_verification:
+    verify_signatures: true
+    required_signers:
+      - release-engineering@sandbox.internal
+      - security-operations@sandbox.internal
+    cosign_keyring: /etc/sandbox/cosign-prod.pub
+    signature_retention: 90d
+    # Reject images with known CVEs above threshold.
+    max_critical_cves: 0
+    max_high_cves: 2
+
+  # === NETWORK SECURITY ===
+  # mTLS mandatory (Key Behavior #1).
+  network:
+    client_auth_mode: require
+    tls_version_min: "1.3"
+    ca_cert_bundle: /etc/sandbox/certs/prod-ca.crt
+    # Restrict to modern, AEAD-only cipher suites.
+    allowed_ciphers:
+      - TLS_AES_128_GCM_SHA256
+      - TLS_AES_256_GCM_SHA384
+      - TLS_CHACHA20_POLY1305_SHA256
+    # HSTS and certificate pinning.
+    hsts_max_age: 31536000
+    pin_prod_cert: true
+
+vault:
+  # OBSIDIAN-001 ENFORCEMENT:
+  # Production profile EXPLICITLY defines vault mount policy.
+  # No implicit or fallback access is permitted.
+  driver: obsidian
+  obsidian:
+    socket_path: /run/obsidian/vault-prod.sock
+    connection_timeout: 5s
+    max_retries: 3
+    # Explicit production mount policy.
+    mount_policy:
+      mode: production
+      allow_mock_secrets: false
+      # Exact path allow-list only. No globs except specific prefixes.
+      allowed_paths:
+        - "production/apps/*"
+        - "production/infra/*"
+        - "production/ci/*"
+      # Explicit deny-list (defense in depth).
+      denied_paths:
+        - "*mock*"
+        - "*dev*"
+        - "*development*"
+        - "*staging*"
+      require_approval: true
+      # All mount requests require dual-control approval.
+      dual_control_approval: true
+      approval_timeout: 30m
+      # Comprehensive audit logging.
+      audit_reads: true
+      audit_writes: true
+      # All audit logs are shipped to tamper-resistant storage.
+      audit_immutable_log: true
+      max_ttl: 4h
+      # Automatic re-authentication required.
+      reauth_interval: 1h
+
+policy_engine:
+  # Strict deny-by-default.
+  endpoint: https://policy.sandbox.internal:8443
+  default_decision: deny
+  decision_timeout: 2s
+  cache_ttl: 15s
+  # Production policy bundles refresh frequently.
+  policy_bundle_refresh: 2m
+  # Require policy bundle signature verification.
+  verify_policy_signatures: true
+  policy_signer: security-operations@sandbox.internal
+
+observability:
+  log_level: WARN
+  # ERROR and above forwarded immediately.
+  alerting_log_level: ERROR
+  metrics_enabled: true
+  metrics_port: 9090
+  # Prometheus federation endpoint.
+  metrics_scrape_endpoint: https://metrics.sandbox.internal:9090
+  health_check_interval: 10s
+  tracing_enabled: true
+  jaeger_endpoint: https://tracing.sandbox.internal:9411
+  # All logs shipped to tamper-resistant SIEM.
+  log_forwarding:
+    enabled: true
+    endpoint: https://siem.sandbox.internal:9200
+    buffer_size: 500
+    tls_mutual_auth: true
+    # Log integrity: cryptographic checksum per batch.
+    integrity_hash: sha256
+
+resource_limits:
+  # Tight production sizing to prevent noisy-neighbor issues.
+  default:
+    cpu_cores: 1.0
+    memory_mb: 1024
+    disk_mb: 2048
+    ephemeral_storage_mb: 512
+    max_processes: 50
+
+network:
+  # Explicitly restricted egress. No wildcard allowed.
+  egress_policy: restricted
+  allowed_egress_hosts:
+    - "registry.sandbox.internal"
+    - "policy.sandbox.internal"
+    - "vault.sandbox.internal"
+    - "siem.sandbox.internal"
+    - "metrics.sandbox.internal"
+    - "tracing.sandbox.internal"
+  proxy_mode: true
+  proxy_endpoint: https://proxy.sandbox.internal:3128
+  proxy_tls: true
+  dns_resolver: "10.0.0.10"
+  # DNS-over-TLS for all lookups.
+  dns_tls: true
